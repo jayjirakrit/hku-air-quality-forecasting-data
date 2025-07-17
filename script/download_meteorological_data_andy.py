@@ -18,7 +18,7 @@ end_date = date(2025, 2, 1)
 date_iter = daterange(start_date, end_date)
 
 # Create output directory
-base_output_folder = "data/andy/"
+base_output_folder = "../data/raw/"
 
 # Base url
 baseurl = "https://app.data.gov.hk/v1/historical-archive/get-file?url="
