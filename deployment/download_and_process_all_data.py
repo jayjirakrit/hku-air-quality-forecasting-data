@@ -1,11 +1,11 @@
-from download_scripts import (
+from deployment.download_scripts import (
     download_air_quality,
     download_meteorological_data,
     processing_air_quality,
     processing_meteorological_data,
 )
 
-if __name__ == "__main__":
+def download_and_processed_all_data():
     try:
         download_meteorological_data.download()
         download_air_quality.download_all()

@@ -1,0 +1,10 @@
+pandas
+tqdm
+numpy
+scipy
+xarray
+apscheduler
+fastapi
+uvicorn[standard]
+google-cloud-storage
+python-dotenv

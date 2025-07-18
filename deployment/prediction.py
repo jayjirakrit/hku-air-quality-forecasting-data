@@ -60,7 +60,7 @@ def load_model(path: str, device) -> nn.Module:
         seq_length=48,
         pred_len=24,
     ).to(device)
-    model.load_state_dict(torch.load(path))
+    model.load_state_dict(torch.load(path,map_location=device))
     model.eval()
     return model
 
