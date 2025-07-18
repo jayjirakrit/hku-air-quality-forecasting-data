@@ -6,72 +6,7 @@ import torch.nn as nn
 import json
 
 from images_to_patches import images_to_patches
-
-
-class ResidualUnit(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-
-    def forward(self, x):
-        identity = x
-
-        out = nn.functional.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-
-        out += identity
-        return nn.functional.relu(out)
-
-
-class CNN(nn.Module):
-    def __init__(self, in_channels, num_residual_units=4):
-        super().__init__()
-        self.initial_conv = nn.Conv2d(in_channels, 64, kernel_size=3, padding=1)
-        self.initial_bn = nn.BatchNorm2d(64)
-
-        layers = []
-        for i in range(num_residual_units):
-            layers.append(ResidualUnit(in_channels=64, out_channels=64))
-            # if i < num_residual_units - 1:
-            #     layers.append(nn.Conv2d(64, 64, kernel_size=1))
-
-        self.residual_blocks = nn.Sequential(*layers)
-        self.adaptive_pool = nn.AdaptiveAvgPool2d((1, 1))
-
-    def forward(self, x):
-        out = nn.functional.relu(self.initial_bn(self.initial_conv(x)))
-        out = self.residual_blocks(out)
-        out = self.adaptive_pool(out)  # Shape: (batch_size, 64, 1, 1)
-        out = torch.flatten(out, 1)  # Shape: (batch_size, 64)
-        return out
-
-
-class CNNLSTM(nn.Module):
-    def __init__(self, in_channels, seq_length, lstm_hidden_size=256, num_lstm_layers=2, pred_len=1):
-        super().__init__()
-        self.seq_length = seq_length
-        self.cnn = CNN(in_channels=in_channels, num_residual_units=1)
-        self.lstm = nn.LSTM(
-            input_size=64,  # Matches the output size of AirRes
-            hidden_size=lstm_hidden_size,
-            num_layers=num_lstm_layers,
-            batch_first=True,
-        )
-        self.fc = nn.Linear(lstm_hidden_size, pred_len)
-
-    def forward(self, x):
-        batch_size, _, channels, height, width = x.shape
-        x = x.view(batch_size * self.seq_length, channels, height, width)
-        cnn_out = self.cnn(x)  # Shape: (batch_size * seq_length, 64)
-        lstm_in = cnn_out.view(batch_size, self.seq_length, -1)  # Shape: (batch_size, seq_length, 64)
-        lstm_out, _ = self.lstm(lstm_in)  # Shape: (batch_size, seq_length, lstm_hidden_size)
-        last_time_step_out = lstm_out[:, -1, :]
-        prediction = self.fc(last_time_step_out)
-
-        return prediction
+from model_architecture import AQI_CNNLSTM
 
 
 # Thresholds for converting added health risk to AQHI bands
@@ -117,7 +52,15 @@ def prepare_input(images_path: str, scalers_path: str, stations_csv: str, patch_
 
 
 def load_model(path: str, device) -> nn.Module:
-    model = torch.load(path, weights_only=False).to(device)
+    model = AQI_CNNLSTM(
+        in_channels=16,
+        num_residual_units=4,
+        lstm_hidden_size=128,
+        num_lstm_layers=1,
+        seq_length=48,
+        pred_len=24,
+    ).to(device)
+    model.load_state_dict(torch.load(path))
     model.eval()
     return model
 
@@ -144,12 +87,13 @@ def main():
     scalers_path = "./data/x_scalers.pkl"
     stations_csv = "./data/stations_epd_idx.csv"
     patch_size = 15
-    model_path = "./data/dummy.pth"
+    aqi_model_path = "./data/cnn_lstm_aqi.pth"
+    fsp_mode_path = ""
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     X_s = prepare_input(images_path, scalers_path, stations_csv, patch_size)
-    model = load_model(model_path, device)
-    ar = predict(model, X_s, device)
+    aqi_model = load_model(aqi_model_path, device)
+    ar = predict(aqi_model, X_s, device)
     aqhi = ar_to_aqhi(ar)
     station_names = load_station_names(stations_csv)
     output = format_output(aqhi, station_names)
