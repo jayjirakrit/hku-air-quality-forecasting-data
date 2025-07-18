@@ -8,16 +8,15 @@ import ast
 
 # Load csv
 def generate_image(base_dir):
-    # Load the station‐to‐grid lookup tables
     stations_epd = pd.read_csv(base_dir + "stations_epd_idx.csv")
     stations_hko = pd.read_csv(base_dir + "stations_hko_idx.csv")
 
     dfs = {}
 
-    dfs["env"] = pd.read_csv(base_dir + "air_quality_env_processed.csv")
-    dfs["idx"] = pd.read_csv(base_dir + "air_quality_index_processed.csv")
-    dfs["hum"] = pd.read_csv(base_dir + "averaged_humidity.csv")
-    dfs["tmp"] = pd.read_csv(base_dir + "averaged_temperature.csv")
+    dfs["env"] = pd.read_csv(base_dir + "air_quality_env.csv")
+    dfs["idx"] = pd.read_csv(base_dir + "air_quality_idx.csv")
+    dfs["hum"] = pd.read_csv(base_dir + "humidity.csv")
+    dfs["tmp"] = pd.read_csv(base_dir + "temperature.csv")
     dfs["prs"] = pd.read_csv(base_dir + "pressure.csv")
     dfs["wnd"] = pd.read_csv(base_dir + "wind.csv")
 
@@ -61,7 +60,7 @@ def generate_image(base_dir):
 
     # Determine the 48-hour window
     # take the max across all dfs to be safe
-    max_ts = min(df["datetime"].max() for df in dfs.values())
+    max_ts = max(df["datetime"].max() for df in dfs.values())
     start = max_ts - timedelta(hours=47)
     time_full_idx = pd.date_range(start, max_ts, freq="1H")
 
@@ -139,6 +138,12 @@ def generate_image(base_dir):
         full_idx=time_full_idx,
     )
 
+    dfs["env"].station = dfs["env"].station.str.upper()
+    dfs["env"] = dfs["env"].replace({"SHA TIN": "SHATIN"})
+
+    dfs["idx"].station = dfs["idx"].station.str.upper()
+    dfs["idx"] = dfs["idx"].replace({"SHA TIN": "SHATIN"})
+
     for key in ["env", "idx"]:
         dfs[key] = dfs[key].merge(stations_epd, on="station", how="inner")
     for key in ["hum", "tmp", "prs", "wnd"]:
@@ -159,6 +164,30 @@ def generate_image(base_dir):
     df_all48["season"] = df_all48["datetime"].dt.month.map(month_to_season)
     df_all48["is_weekend"] = df_all48["datetime"].dt.dayofweek.isin([5, 6]).astype(int)
 
+    df_all48 = df_all48.loc[
+        :,
+        [
+            "datetime",
+            "so2",
+            "no",
+            "no2",
+            "rsp",
+            "o3",
+            "fsp",
+            "lat_idx",
+            "lon_idx",
+            "aqi",
+            "humidity",
+            "max_temp",
+            "min_temp",
+            "pressure",
+            "wind_direction",
+            "wind_speed",
+            "max_wind_speed",
+            "season",
+            "is_weekend",
+        ],
+    ]
     lat_idxs = np.arange(46)
     lon_idxs = np.arange(68)
 
@@ -205,7 +234,7 @@ def generate_image(base_dir):
 
 
 if __name__ == "__main__":
-    base_dir = "/home/andywu/HKU_FYP/hku-air-quality-forecasting-data/data/"
+    base_dir = "./data/"
     image_filled = generate_image(base_dir)
     np.save("./data/past48h_tensor.npy", image_filled)
     print("Generated tensor of shape", image_filled.shape)
