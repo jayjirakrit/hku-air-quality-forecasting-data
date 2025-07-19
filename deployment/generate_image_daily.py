@@ -231,10 +231,3 @@ def generate_image(base_dir):
             filled48[t, c] = fill2d_griddata(arr48[t, c])
 
     return filled48
-
-
-if __name__ == "__main__":
-    base_dir = "./data/"
-    image_filled = generate_image(base_dir)
-    np.save("./data/past48h_tensor.npy", image_filled)
-    print("Generated tensor of shape", image_filled.shape)
