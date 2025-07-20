@@ -1,17 +1,20 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from tzlocal import get_localzone
 from deployment.generate_image_daily import generate_image
 import numpy as np
 from deployment.download_and_process_all_data import download_and_processed_all_data
 from lib.google_cloud import upload_blob
 import os
 from dotenv import load_dotenv
+import pytz
 
 # Load environment variables from .env file
 load_dotenv()
-scheduler = AsyncIOScheduler(timezone=get_localzone())
+
+# Define Hong Kong timezone
+hong_kong_tz = pytz.timezone("Asia/Hong_Kong")
+scheduler = AsyncIOScheduler(timezone=hong_kong_tz)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
